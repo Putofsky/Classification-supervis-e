@@ -1,0 +1,152 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(MASS)
+library(klaR)
+
+load("../data/Desbois_complet.rda")
+colnames(data)
+```
+```{r}
+set.seed(10) # pour avoir des résultats reproductibles
+tr <- sample(1:nrow(data), as.integer(0.75*nrow(data)))
+# Méthode lda
+g <- lda(DIFF~., data=data[tr, ])
+ypred <- predict(g, data[-tr, ])$class
+ytrue <- data$DIFF[-tr]
+sum(ypred != ytrue)/length(ytrue)
+# Taux d’erreur test de la méthode lda (pour ce découpage) de 15.2%
+# Méthode Wilks (niveau=0.01) + lda
+formula <- greedy.wilks(DIFF~., data=data[tr, ], niveau=0.01)$formula
+g <- lda(formula, data=data[tr, ])
+ypred <- predict(g, data[-tr, ])$class
+ytrue <- data$DIFF[-tr]
+sum(ypred != ytrue)/length(ytrue)
+# Taux d’erreur test de la méthode Wilks + lda de 13.9%
+# Recommencer avec d’autres découpages :
+# -> les variables sélectionnées peuvent être différentes !
+```
+```{r}
+set.seed(3.14)
+tr <- sample(1:nrow(data), as.integer(0.5*nrow(data)))
+# Méthode lda
+g <- lda(DIFF~., data=data[tr, ])
+ypred <- predict(g, data[-tr, ])$class
+ytrue <- data$DIFF[-tr]
+sum(ypred != ytrue)/length(ytrue)
+# Taux d’erreur test de la méthode lda (pour ce découpage) de 15.2%
+# Méthode Wilks (niveau=0.01) + lda
+formula <- greedy.wilks(DIFF~., data=data[tr, ], niveau=0.01)$formula
+g <- lda(formula, data=data[tr, ])
+ypred <- predict(g, data[-tr, ])$class
+ytrue <- data$DIFF[-tr]
+sum(ypred != ytrue)/length(ytrue)
+# Taux d’erreur test de la méthode Wilks + lda de 13.9%
+# Recommencer avec d’autres découpages :
+# -> les variables sélectionnées peuvent être différentes !
+```
+```{r}
+selected_vars <- list()
+
+for (i in 1:50){
+  set.seed(i)
+  tr <- sample(1:nrow(data), as.integer(0.5*nrow(data)))
+  formula <- greedy.wilks(DIFF~., data=data[tr, ], niveau=0.01)$formula
+  vars <- setdiff(all.vars(formula), "DIFF")
+  selected_vars[[i]] <- vars
+}
+
+a <- table(unlist(selected_vars))
+prop <- a / 50
+prop
+```
+```{r}
+prop_df <- data.frame(variable = names(prop_sel),
+                      proportion = as.numeric(prop_sel))
+prop_df <- prop_df[order(prop_df$proportion, decreasing = TRUE), ]
+
+op <- par(mar = c(9,4,3,1)) # marges ajustées pour les noms en x
+barplot(height    = prop_df$proportion,     # hauteurs = proportions
+        names.arg = prop_df$variable,       # noms des variables
+        ylim      = c(0,1),                 # axe Y entre 0 et 1
+        las       = 2,                      # labels en x verticaux
+        main      = "B = 50 découpages, niveau = 0.01", # titre
+        ylab      = "Proportion de sélection",
+        cex.names = 0.9,                    # taille du texte
+        col       = "lightblue",            # couleur barres
+        border    = "darkblue")             # contour barres
+par(op)
+```
+```{r}
+selected_vars <- list()
+erreur_lda <- numeric(50) 
+erreur_wilkinson <- numeric(50) 
+
+for (i in 1:50){
+  
+  set.seed(i)
+  tr <- sample(1:nrow(data), as.integer(0.5*nrow(data)))
+  te <- setdiff(1:nrow(data), tr)
+  
+  
+  g <- lda(DIFF~., data=data[tr, ])
+  ypred <- predict(g, data[te, ])$class
+  ytrue <- data$DIFF[te]
+  erreur_lda[i] <- sum(ypred != ytrue)/length(ytrue)
+  
+  
+  formula <- greedy.wilks(DIFF~., data=data[tr, ], niveau=0.01)$formula
+  g <- lda(formula, data=data[tr, ])
+  ypred <- predict(g, data[te, ])$class
+  ytrue <- data$DIFF[te]
+  erreur_wilkinson[i] <- sum(ypred != ytrue)/length(ytrue)
+  
+  vars <- setdiff(all.vars(formula), "DIFF")
+  selected_vars[[i]] <- vars
+}
+
+boxplot(list(lda=erreur_lda, lda_wilks=erreur_wilkinson),
+        main="B=50 découpages, niveau=0.01",
+        ylab="Erreur test")
+
+```
+
+
+```{r}
+sel_counts <- table(unlist(selected_vars))
+prop_sel <- sel_counts / 50
+prop_sel[order(prop_sel, decreasing = TRUE)]
+final_vars <- c("R1","R2","R3","R14","R17","R21","R32","R36")
+final_vars %in% names(prop_sel)
+```
+```{r}
+final_vars <- c("R1","R2","R3","R14","R17","R21","R32","R36")
+form_final <- as.formula(paste("DIFF ~", paste(final_vars, collapse = "+")))
+g_final <- lda(form_final, data = data)
+x <- data.frame(R1=0.33, R2=0.82, R3=0.56, R4=0.19, R5=0.15, R6=0.7,
+                R7=0.31, R8=0.39, R11=0.41, R12=0.64, R14=0.48, R17=0.04,
+                R18=0.03, R19=0.1, R21=0.09, R22=0.29, R24=0.17,R28=0.35,
+                R30=0.25, R32=0.32, R36=1.3, R37=0.48)
+pred <- predict(g_final, x[, final_vars, drop = FALSE])
+
+pred$class      
+pred$posterior  
+```
+
+
+
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
