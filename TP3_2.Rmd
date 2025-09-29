@@ -1,0 +1,77 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+load("../data/infarctus_complet.rda")
+infarctus
+```
+```{r}
+set.seed(30)
+n <- nrow(infarctus)
+tr <- sample(1:n, as.integer(0.7 * n))
+train_data <- infarctus[tr, ]
+test_data  <- infarctus[-tr, ]
+dim(train_data)  # ~70
+dim(test_data)   # ~31
+```
+```{r}
+classe_maj <- names(which.max(table(train_data$PRONO)))
+classe_maj  
+
+pred_major <- rep(classe_maj, nrow(test_data))
+
+true_labels <- test_data$PRONO
+err_major <- mean(pred_major != true_labels)
+err_major
+```
+```{r}
+library(MASS)
+```
+```{r}
+qda_model <- qda(PRONO ~ ., data = train_data)
+qda_pred <- predict(qda_model, newdata = test_data)
+qda_classes <- qda_pred$class
+err_qda <- mean(qda_classes != test_data$PRONO)
+err_qda
+```
+```{r}
+conf_mat <- table(Pred = qda_classes, True = test_data$PRONO)
+conf_mat
+```
+```{r}
+VP = 10 / ( 10 + 4 )
+VN = 14 / ( 14 + 3 )
+VP
+VN
+```
+```{r}
+qda_probs <- qda_pred$posterior
+cost_matrix <- matrix(c(0, 1, 5, 0), nrow = 2, byrow = TRUE)
+expected_cost <- qda_probs %*% t(cost_matrix)
+cost_pred <- apply(expected_cost, 1, which.min)
+cost_pred <- as.character(cost_pred)
+err_cost <- mean(cost_pred != test_data$PRONO)
+err_cost
+```
+```{r}
+conf_cost <- table(Pred = cost_pred, True = test_data$PRONO)
+conf_cost
+```
+```{r}
+VP2 = 12 / ( 12 + 2)
+VN2 = 11 / ( 11 + 6)
+VP2
+VN2
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
